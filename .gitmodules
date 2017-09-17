@@ -4,6 +4,3 @@
 [submodule "lensfun_webassembly"]
 	path = lensfun_webassembly
 	url = https://github.com/mattchamb/lensfun_webassembly.git
-[submodule "LibRaw"]
-	path = LibRaw
-	url = https://github.com/mattchamb/LibRaw.git
