@@ -6,7 +6,7 @@ LENSFUN = lensfun_webassembly/dist/lensfun_wasm.bc
 all: brawser.js
 
 brawser.js: $(LIBRAW) $(LIBJPEG) $(LENSFUN) brawser.cpp
-	$(CC) $(LIBRAW) $(LIBJPEG) $(LENSFUN) brawser.cpp -o $@ -O2 -s WASM=1 -s BUILD_AS_WORKER=1 -s ALLOW_MEMORY_GROWTH=1
+	$(CC) $(LIBRAW) $(LIBJPEG) $(LENSFUN) brawser.cpp --bind -O2 -o $@ -s WASM=1 -s BUILD_AS_WORKER=1 -s ALLOW_MEMORY_GROWTH=1
 
 $(LIBRAW):
 	cd ./LibRaw-0.18.4 && emmake make

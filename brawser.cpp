@@ -2,13 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <emscripten.h>
+#include <emscripten/bind.h>
 #include "libjpeg/jpeglib.h"
 #include "lensfun_webassembly/lensfun/lensfun.h"
 #include "LibRaw-0.18.4/libraw/libraw.h"
 
+using namespace emscripten;
 
-void EMSCRIPTEN_KEEPALIVE asdf(void* buffer, size_t size) {
-    LibRaw *raw = new LibRaw();
+void asdf(LibRaw* raw, void* buffer, size_t size) {
     raw->open_buffer(buffer, size);
     raw->unpack();
 
@@ -18,30 +19,49 @@ void EMSCRIPTEN_KEEPALIVE asdf(void* buffer, size_t size) {
 
     raw->dcraw_process();
     libraw_processed_image_t* img = raw->dcraw_make_mem_image();
-
     raw->dcraw_clear_mem(img);
     raw->recycle();
     delete raw;
+    
 }
 
-void EMSCRIPTEN_KEEPALIVE qwer() {
+void qwer() {
     lfLens* lens = new lfLens();
-
     lfModifier* mod = new lfModifier(lens, 1, 10, 10);
 
     mod->ApplyColorModification(NULL, 0.0, 1, 1, 1, LF_CR_3 (RED, GREEN, BLUE), 0);
-    mod->ApplySubpixelGeometryDistortion (0.0, 1, 1, 1, NULL);
+
+    int lwidth = img->width * 2 * 3;
+    if (modflags & LF_MODIFY_TCA) {
+        lwidth *= 3;
+    }
+    float *pos = new float [lwidth];
+
+    bool ok = mod->ApplySubpixelGeometryDistortion (0.0, 1, 1, 1, pos);
+    if (ok)
+    {
+        float *src = pos;
+        for (unsigned x = 0; x < /*img->width*/0; x++)
+        {
+            // dst->red   = img->GetR (src [0], src [1]);
+            // dst->green = img->GetG (src [2], src [3]);
+            // dst->blue  = img->GetB (src [4], src [5]);
+            src += 2 * 3;
+            dst++;
+        }
+    }
+    break;
 
     delete lens;
 }
 
-void EMSCRIPTEN_KEEPALIVE aaaa(JSAMPLE* image_buffer) {
+void createJpeg(JSAMPLE* image_buffer, int quality) {
     jpeg_compress_struct cinfo;
     jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];	/* pointer to JSAMPLE row[s] */
     int row_stride;		/* physical row width in image buffer */
     int image_width = 1;
-    int quality = 95;
+    //int quality = 95;
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_compress(&cinfo);
     unsigned char* outbuff;
@@ -56,7 +76,7 @@ void EMSCRIPTEN_KEEPALIVE aaaa(JSAMPLE* image_buffer) {
     jpeg_set_quality(&cinfo, quality, TRUE /* limit to baseline-JPEG values */);
     jpeg_start_compress(&cinfo, TRUE);
 
-    row_stride = image_width * 3;	/* JSAMPLEs per row in image_buffer */
+    row_stride = image_width * 3;
     
     while (cinfo.next_scanline < cinfo.image_height) {
         row_pointer[0] = & image_buffer[cinfo.next_scanline * row_stride];
@@ -64,4 +84,36 @@ void EMSCRIPTEN_KEEPALIVE aaaa(JSAMPLE* image_buffer) {
     }
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
+}
+
+EMSCRIPTEN_BINDINGS(my_module) {
+    function("qwer", &qwer);
+    function("createJpeg", &createJpeg, allow_raw_pointers());
+    function("asdf", &asdf, allow_raw_pointers());
+
+    value_object<libraw_processed_image_t>("libraw_processed_image_t")
+    .field("data", &libraw_processed_image_t::data)
+    .field("data_size", &libraw_processed_image_t::data_size)
+    .field("height", &libraw_processed_image_t::height)
+    .field("width", &libraw_processed_image_t::width)
+    ;
+
+    class_<lfModifier>("lfModifier")
+    .constructor<lfLens, float, long, long>()
+    .function("Initialize", &lfModifier::Initialize, allow_raw_pointers())
+    .function("ApplyColorModification", &lfModifier::ApplyColorModification, allow_raw_pointers())
+    .function("ApplyGeometryDistortion", &lfModifier::ApplyGeometryDistortion, allow_raw_pointers())
+    .function("ApplySubpixelDistortion", &lfModifier::ApplySubpixelDistortion, allow_raw_pointers())
+    .function("ApplySubpixelGeometryDistortion", &lfModifier::ApplySubpixelGeometryDistortion, allow_raw_pointers())
+    ;
+    class_<LibRaw>("LibRaw")
+    .constructor()
+    .function("dcraw_clear_mem", &LibRaw::dcraw_clear_mem, allow_raw_pointers())
+    .function("unpack", &LibRaw::unpack, allow_raw_pointers())
+    .function("open_buffer", &LibRaw::open_buffer, allow_raw_pointers())
+    .function("dcraw_process", &LibRaw::dcraw_process, allow_raw_pointers())
+    .function("dcraw_make_mem_image", &LibRaw::dcraw_make_mem_image, allow_raw_pointers())
+    .function("dcraw_clear_mem", &LibRaw::dcraw_clear_mem, allow_raw_pointers())
+    .function("recycle", &LibRaw::recycle, allow_raw_pointers())
+    ;
 }
